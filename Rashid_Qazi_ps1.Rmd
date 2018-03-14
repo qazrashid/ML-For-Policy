@@ -1,0 +1,240 @@
+---
+title: '[WWS 586A]: Problem Set 1'
+author: "Qazi Rashid"
+output:
+  html_notebook: default
+  html_document: default
+  pdf_document: default
+---
+
+### [WWS 586a] Problem Set 1
+
+For this problem set, we will be doing some basic programming excercises in R to get you acquainted with using R, R-Markdown and R Studio
+
+### Guidelines
+
+All problem sets must be submitted as two files:
+
+1. A *R Markdown* file with the following format: "lastname_firstname_ps1.Rmd". Ie. for me this would be: "anastasopoulos_jason_ps1.Rmd"
+
+2. A compiled *R Markdown* file in HTML with the following format: "lastname_firstname_ps1.html" Ie. for me this would be: "anastasopoulos_jason_ps1.html"
+
+Please only fill in the sections labelled "YOUR CODE HERE"
+  
+### Data
+
+We will be again using the [Stop, Question and Frisk Data from the NYPD](https://www1.nyc.gov/site/nypd/stats/reports-analysis/stopfrisk.page) which contains information about over 100,000 police citizen interactions between 2003-2016.
+
+```{r}
+# Let's first load the R packages and the data
+library(bitops)
+library(foreign)
+library(RCurl)
+library(ggplot2)
+library(reshape2)
+
+
+stopandfrisk2016<-
+  read.csv(
+    text=getURL("https://raw.githubusercontent.com/ljanastas/WWS586A-Machine-Learning-Policy-Analysis/master/Data/stop-and-frisk2016.csv"),  
+           header=T)
+
+```
+### Background
+
+Bill DeBlasio has come to you because he is interested in conducting an audit of some of the NYPD's policies for frisking individuals suspected of criminar activity. He is particularly concerned that those indivduals that are frisked happen to be overwhelmingly African-American. 
+
+
+### 1: Summary statistics
+
+As a first cut, DeBlasio would like to see summary statistics ($%$ of people frisked and $%$ of people not frisked) within each racial category.
+
+In other words, of the people that are frisked, what percent are Black, White, Hispanic etc. Of the people that are not frisked, what percent are Black, White, Hispanic etc..
+
+* Main variables
+* **arstmade** - Was an arrest made?
+* **race** - Race of the suspect.
+* **timestop** - Time that the suspect was stopped. 
+* **datestop** - Date that the suspect was stopped. 
+* **age** - Suspect's age.
+
+
+```{r}
+
+dim(stopandfrisk2016)
+head(stopandfrisk2016)
+attach(stopandfrisk2016)
+names(stopandfrisk2016)
+summary(frisked)
+
+table(race[frisked == "Y"])
+table(race[frisked == "N"])
+
+mytable = table(race, frisked)
+mytable
+
+margin.table(mytable, 1) # race frequencies (summed over frisked) 
+margin.table(mytable, 2) # frisked frequencies (summed over race)
+
+round(prop.table(mytable, 1),4) # race percentages: rows add up to 1 
+round(prop.table(mytable, 2),4) # frisked percentages: the columns add up to 1
+
+```
+
+
+### 2: Visualization
+
+In addition to the summary statistics, the mayor would like you to produce two plots: a pie chart and a bar plot containing the percent of people within each racial group that were frisked. 
+
+Both the pie chart and the bar plot should have the title "Percent of Racial Group Frisked".
+
+Also, please save both plots as .png files. No need to submit the images, just make sure that the code is included below.
+
+```{r}
+##
+
+class(stopandfrisk2016$race)
+
+unique(stopandfrisk2016$race)
+
+test = data.frame(race = unique(stopandfrisk2016$race[stopandfrisk2016$frisked == "Y"]), proportion = NA)
+
+for (i in 1:nrow(test)){
+ trash = stopandfrisk2016[stopandfrisk2016$race[stopandfrisk2016$frisked == "Y"] == test$race[i],]
+ test$proportion[i] = (nrow(trash) / nrow(stopandfrisk2016))*100
+}
+
+
+plot = ggplot(test, aes(x=race, y=proportion))
+plot = plot + geom_bar(stat="identity") + theme_bw()
+plot
+
+##
+
+
+table(race[frisked=="Y"]) 
+
+B = c(435, 4336,   21,  584, 1772,   48,  659,   84)
+
+percentlabels = round(100*B/sum(B), 1)
+
+#Add a ‘%’ sign to each percentage value using the paste command.
+
+pielabels = paste(percentlabels, "%", sep="")
+
+pie(B, main="Percent of Racial Group Frisked", col=rainbow(length(B)), labels=pielabels, cex=0.8)
+
+legend("topright", c("Asian","Black", "American Indian", "Black Hispanic", "White Hispanic", "Not listed", "White", "Other"), cex=0.8, fil=rainbow(length(B)))
+
+png("pie_race&frisk.png")
+dev.off() #this tells R that I am done saving eveyrthing i need to save
+
+
+```
+
+
+### 3: Writing functions
+
+Many of the variables in the stop and frisk data are coded as "Y" for "Yes" and "N" for no. You want to have an easy means of recoding every variable in the stop and frisk data set using a function that you define. 
+
+#### (a) 
+In order to save some time from having to recode every single variable that contains a "Y" or a "N", write a function that transforms:
+
+* "Y" codings to "1"
+* "N" codings to "0"
+* " " codings to "NA"
+
+for a single variable and returns the recoded variable. Call this function "yesno"
+
+```{r}
+yesno = function(oldvariable,newvariable){
+  if(sum(levels(oldvariable) =="Y") > 0 | sum(levels(oldvariable) =="N") > 0 | sum(levels(oldvariable) =="") > 0){
+    newvariable = ifelse (oldvariable == "Y", 1, oldvariable)
+    newvariable = ifelse (oldvariable == "N", 0, newvariable)
+    newvariable = ifelse (oldvariable == "", NA, newvariable)
+  
+    return(newvariable)
+  }
+  else {
+    print("Error")
+  }
+}
+
+#test if the fucntion is working
+newfri = yesno(frisked,newfri)
+table(newfri)
+table(frisked)
+
+```
+
+
+#### (b) 
+
+Using the function that you defined in part (a), write a loop that transforms every single variable in the "stopandfrisk2016" data frame containing a "Y" or "N" coding into "1", "0" or "NA" codings as specified above. 
+
+Save these newly coded variables in a data frame called "recoded" and use the "head()" function to print out the first few observations of the new dataframe that you created.
+
+
+```{r}
+recoded = stopandfrisk2016
+
+for(i in 1:ncol(stopandfrisk2016)) {
+
+  recoded[,i] = yesno(stopandfrisk2016[,i], recoded[,i])
+
+}
+
+head(recoded$frisked)
+
+```
+
+
+
+### 4: Logistic regression
+
+Estimate a logistic regression model using the "frisked" variable as your dependent variable and with 5 independent variables of your choosing. Calculate odds ratios for each of the independent variables that you included in the model and print out the odds ratios. 
+
+Interpret the odds ratios for one of your independent variables.
+
+$$
+logit(\mathbb{E}(Frisked | X)) = \alpha +  \beta_1 White + \beta_2 Black + \beta_3 Time + \beta_4 Age + \beta_5 Female + \epsilon
+$$
+
+
+```{r}
+# First we have to create variables for white and black
+white = ifelse(race == "W", 1,0)
+black = ifelse(race == "B", 1,0)
+female = ifelse(sex == "F", 1,0)
+time = timestop
+age = as.numeric(age)
+
+table(female)
+table(sex)
+```
+
+```{r}
+#create logit models
+logit.model = glm(frisked~white+black + time  + age + female, family = binomial(link="logit"))
+summary(logit.model)
+
+#let's find odds ratio and CIs
+exp(coef(logit.model))
+confint.default(logit.model)
+
+#Let's retrieve the predicted probabilities and compare them by race:
+probs = predict(logit.model,type="response")
+hist(probs)
+
+#What's the predicted frisk probability for black and white suspects?
+
+mean(probs[black == 1]) # For black suspects
+mean(probs[white == 1]) # For white suspects
+mean(probs[female == 1]) # For female 
+
+```
+#interpretations of odds ratio:
+
+White = 0.6585137 = white suspects are 35% less likely to be frisked compared to their counterparts.
+
+Black = 1.1557516 = for black suspects, the odds of being frisked (compared to not being frisked) increase by a factor of 1.16. Alternatively, black suspects are 16% more likely to be frisked than their counterparts.  
