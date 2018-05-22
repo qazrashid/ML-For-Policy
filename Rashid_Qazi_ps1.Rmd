@@ -1,25 +1,4 @@
----
-title: '[WWS 586A]: Problem Set 1'
-author: "Qazi Rashid"
-output:
-  html_notebook: default
-  html_document: default
-  pdf_document: default
----
 
-### [WWS 586a] Problem Set 1
-
-For this problem set, we will be doing some basic programming excercises in R to get you acquainted with using R, R-Markdown and R Studio
-
-### Guidelines
-
-All problem sets must be submitted as two files:
-
-1. A *R Markdown* file with the following format: "lastname_firstname_ps1.Rmd". Ie. for me this would be: "anastasopoulos_jason_ps1.Rmd"
-
-2. A compiled *R Markdown* file in HTML with the following format: "lastname_firstname_ps1.html" Ie. for me this would be: "anastasopoulos_jason_ps1.html"
-
-Please only fill in the sections labelled "YOUR CODE HERE"
   
 ### Data
 
