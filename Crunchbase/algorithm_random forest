@@ -1,0 +1,249 @@
+Part 1: includes all the features.
+
+```{r}
+dataset_xy = read.csv ("/Users/qazirashid/Desktop/Machine Learning/Final project/dataset_xy_no_outliers.csv", header = TRUE)
+features = read.csv ("/Users/qazirashid/Desktop/Machine Learning/Final project/features_no_outliers.csv", header = TRUE)
+
+dataset_xy= dataset_xy[,-which(names(dataset_xy) == "X")] #removing "X" 
+dataset_xy= dataset_xy[,-which(names(dataset_xy) == "country.Other")] #removing "other" 
+
+features= features[,-which(names(features) == "X")] #removing "X" 
+features= features[,-which(names(features) == "country.Other")] #removing "other" 
+
+#Create outcome varible for success
+success = ifelse (dataset_xy$success==1, 1, 0) #value with just Y
+success_indices = which(success == 1)
+success = as.numeric(success)
+
+
+```
+
+```{r}
+############ Training and testing for success ########################################
+train.success=sample(1:dim(dataset_xy)[1],
+             dim(dataset_xy)[1]*0.8) #80 percent training and 20 percent test
+trainX.success = features[train.success,]
+testX.success = features[-train.success,]
+trainY.success = success[train.success]
+testY.success = success[-train.success]
+
+traindata.success<-data.frame(trainY.success,trainX.success)
+testdata.success<-data.frame(factor(testY.success),testX.success)
+
+############ Random Forest with Ranger ########################################
+set.seed(333)
+
+rf_fit.success<-ranger(factor(trainY.success)~., data=traindata.success, 
+               importance='impurity', #related to measure of entropy = similar to information gain, tells us imp features 
+               write.forest=TRUE, #if i train this, can you print out the decision tree for me later?
+               probability=TRUE) #
+
+
+####### Draw the trees ############### 
+library(rpart.plot)
+trees.success=rpart(factor(trainY.success)~., traindata.success)
+plot(trees.success)
+text(trees.success)
+rpart.plot(trees.success)
+
+
+####### Performance######## ####################################################################
+
+# With ranger we have to generate the predicted probabilities and classify the out ourselves
+rf_probs.success<-predict(rf_fit.success,data.frame(testdata.success)) #this is a matrix 
+
+rf_class.success<-ifelse(rf_probs.success$predictions[,2] > 0.5, 1,0) #those with predicted pro of above 50% as success 
+#this looks at the second column: we are taking the positive class label
+
+#once we do the above, we get a better confusion matrix  
+
+# We can then manually assess performance 
+confusion.success<-table(rf_class.success, testdata.success$factor.testY.success.)
+confusion.success
+
+# Accuracy
+accuracy.success<-c(confusion.success[1,1]+confusion.success[2,2])/sum(confusion.success)
+accuracy.success
+
+# Specificity
+specificity.success<-confusion.success[1,1]/sum(confusion.success[1,])
+specificity.success
+
+# Sensitivity
+sensitivity.success<-confusion.success[2,2]/sum(confusion.success[2,])
+sensitivity.success
+
+#Report F1 score:
+F1_score.success<-2*(accuracy.success*sensitivity.success)/(accuracy.success+sensitivity.success)
+F1_score.success
+
+```
+
+```{r}
+### Plot for success classifier
+####### Variable Importance for success ##############################################
+
+# Let's extract the variable importance - about the information gain we were talking about
+varimp.success = rf_fit.success$variable.importance
+
+# We can create a variable importance plot
+# but it's a bit tricky
+
+# Extract the words and their importance scores
+words.success<-names(varimp.success)
+importance.success<-as.vector(varimp.success)
+
+# Create a data frame with both
+importance.data.success = data.frame(words.success,importance.success)
+
+# Now we need to reorder the data frame in descending order
+# and only choose the top 20 features
+
+importance.data.success = importance.data.success[order(-importance.data.success$importance.success),]
+importance.data.success = importance.data.success[1:20,]
+
+# Now we can use ggplot2 to create the plot
+# Plot variable importance: all the important terms that lead to success
+ggplot(importance.data.success, 
+       aes(x=reorder(words.success,importance.success), y=importance.success,fill=importance.success))+ 
+  geom_bar(stat="identity", position="dodge")+ coord_flip()+
+  ylab("Variable Importance")+
+  xlab("")+
+  ggtitle("Important Variable Plot with Funding Features")+
+  guides(fill=F)+ scale_color_gradient2(midpoint=mid, low="blue", mid="white",
+                     high="red", space ="Lab" )
+
+dev.copy(pdf,'var_importance1.pdf')
+dev.off()
+
+```
+
+
+Part 2: Let's remove  the funding specific variables and see what happens
+
+```{r}
+dataset_xy = read.csv ("/Users/qazirashid/Desktop/Machine Learning/Final project/dataset_xy_no_outliers.csv", header = TRUE)
+features = read.csv ("/Users/qazirashid/Desktop/Machine Learning/Final project/features_no_outliers.csv", header = TRUE)
+
+dataset_xy= dataset_xy[,-which(names(dataset_xy) == "X")] #removing the variable
+dataset_xy= dataset_xy[,-which(names(dataset_xy) == "funding_total_usd")] #removing variable
+dataset_xy= dataset_xy[,-which(names(dataset_xy) == "country.Other")] #removing variable
+
+dataset_xy= dataset_xy[,-which(names(dataset_xy) == "last_first_funding")] #removing variable 
+dataset_xy = data.frame(dataset_xy[-c(141:155)]) #removing funding rounds
+
+
+features= features[,-which(names(features) == "funding_total_usd")] #removing variable
+features= features[,-which(names(features) == "X")] #removing variable
+features= features[,-which(names(features) == "country.Other")] #removing variable 
+features= features[,-which(names(features) == "last_first_funding")] #removing variable
+features = data.frame(features[-c(141:155)]) #removing funding rounds
+
+#Create outcome varible for success
+success = ifelse (dataset_xy$success==1, 1, 0) #value with just Y
+success_indices = which(success == 1)
+success = as.numeric(success)
+
+```
+
+```{r}
+############ Training and testing for Success ########################################
+train.success=sample(1:dim(dataset_xy)[1],
+             dim(dataset_xy)[1]*0.8) #80 percent training and 20 percent test
+trainX.success = features[train.success,]
+testX.success = features[-train.success,]
+trainY.success = success[train.success]
+testY.success = success[-train.success]
+
+traindata.success<-data.frame(trainY.success,trainX.success)
+testdata.success<-data.frame(factor(testY.success),testX.success)
+
+############ Random Forest with Ranger ########################################
+
+set.seed(333)
+
+rf_fit.success<-ranger(factor(trainY.success)~., data=traindata.success, 
+               importance='impurity', #related to measure of entropy = similar to information gain, tells us imp features 
+               write.forest=TRUE, #if i train this, can you print out the decision tree for me later?
+               probability=TRUE) #
+
+
+####### Draw the trees ############### 
+library(rpart.plot)
+trees.success=rpart(factor(trainY.success)~., traindata.success)
+plot(trees.success)
+text(trees.success)
+rpart.plot(trees.success)
+
+
+####### Performance######## ####################################################################
+
+# With ranger we have to generate the predicted probabilities and classify the out ourselves
+rf_probs.success<-predict(rf_fit.success,data.frame(testdata.success)) #this is a matrix 
+
+rf_class.success<-ifelse(rf_probs.success$predictions[,2] > 0.5, 1,0) #those with predicted pro of above 50% as success 
+#this looks at the second column: we are taking the positive class label
+
+#once we do the above, we get a better confusion matrix  
+
+# We can then manually assess performance 
+confusion.success<-table(rf_class.success, testdata.success$factor.testY.success.)
+confusion.success
+
+# Accuracy
+accuracy.success<-c(confusion.success[1,1]+confusion.success[2,2])/sum(confusion.success)
+accuracy.success
+
+# Specificity
+specificity.success<-confusion.success[1,1]/sum(confusion.success[1,])
+specificity.success
+
+# Sensitivity
+sensitivity.success<-confusion.success[2,2]/sum(confusion.success[2,])
+sensitivity.success
+
+#Report F1 score:
+F1_score.success<-2*(accuracy.success*sensitivity.success)/(accuracy.success+sensitivity.success)
+F1_score.success
+
+```
+
+
+```{r}
+### Plot for success classifier
+####### Variable Importance for success ##############################################
+
+# Let's extract the variable importance - about the information gain we were talking about
+varimp.success = rf_fit.success$variable.importance
+
+# We can create a variable importance plot
+# but it's a bit tricky
+
+# Extract the words and their importance scores
+words.success<-names(varimp.success)
+importance.success<-as.vector(varimp.success)
+
+# Create a data frame with both
+importance.data.success = data.frame(words.success,importance.success)
+
+# Now we need to reorder the data frame in descending order
+# and only choose the top 10 features
+
+importance.data.success = importance.data.success[order(-importance.data.success$importance.success),]
+importance.data.success = importance.data.success[1:20,]
+
+# Now we can use ggplot2 to create the plot
+# Plot variable importance: all the important terms that lead to success 
+ggplot(importance.data.success, 
+       aes(x=reorder(words.success,importance.success), y=importance.success,fill=importance.success))+ 
+  geom_bar(stat="identity", position="dodge")+ coord_flip()+
+  ylab("Variable Importance")+
+  xlab("")+
+  ggtitle("Important Variable Plot without Funding Features")+
+  guides(fill=F)+ scale_color_gradient2(midpoint=mid, low="blue", mid="white",
+                     high="red", space ="Lab" )
+
+dev.copy(pdf,'var_importance2.pdf')
+dev.off()
+
+```
