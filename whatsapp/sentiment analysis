@@ -1,0 +1,258 @@
+
+library(pacman)
+pacman::p_load(tm,SnowballC,foreign,plyr,slam,foreign,wordcloud,LiblineaR,e1071,caret)
+library("RColorBrewer")
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(tidytext)
+library(syuzhet)
+
+
+dat = read.csv ("/Users...Whatsapp data/data2.csv", header = TRUE)
+head(dat)
+str(dat)
+table(dat$sender)
+table(dat$date)
+
+
+#The iso will be POSIXlt class variable telling us the date and time each message was sent. 
+#ie we are pasting the date, time and morning variables together (paste()) and 
+#then telling R that is variable represents time (strptime()).
+dat$iso <- paste(dat$date, dat$time, dat$morning, tz="EST")
+dat$iso <- strptime(dat$iso, "%m/%d/%Y %I:%M:%S %p")
+
+#Now to make the new variables month, day, hour using the functions months(), weekdays() and format()
+dat$month <- months(dat$iso, abbreviate = TRUE)
+dat$day <- weekdays(dat$iso, abbreviate = TRUE)
+dat$hour <- format(dat$iso, "%H")
+dat$day <- format(dat$iso, "%u")
+dat$month <- format(dat$iso, "%m")
+dat$year <- format(dat$iso, "%Y")
+
+#And finally telling R that the variable date is a date and not a factor. 
+dat$date <- as.Date(as.character(dat$date), format = "%m/%d/%y")
+dat$hour <- as.numeric(dat$hour)
+dat$day <- as.numeric(dat$day)
+dat$month <- as.numeric(dat$month)
+dat$year <- as.numeric(dat$year)
+
+#seperating two halves
+table(dat$year) 
+dat$first = ifelse (dat$year == "17" & dat$month <= "7", 1, 0) 
+table(dat$first)
+
+dat$second = ifelse (dat$first == "0", 1, 0) 
+table(dat$second)
+
+#average count per date 
+ggplot(dat, aes(x = date)) + geom_histogram(binwidth =2, position = 'dodge')  +  
+  ylab("# of messages") + xlab("date") + theme(plot.title = element_text(face = "italic")) + facet_grid(year ~  .)
+dev.copy(pdf,'date0.pdf')
+dev.off()
+
+ggplot(dat, aes(x = date, fill = sender)) + geom_histogram(binwidth =10, position = 'dodge') + 
+  ylab("# of messages") + xlab("date")
+dev.copy(pdf,'date1.pdf')
+dev.off()
+ggplot(dat, aes(x=date, fill=sender)) + geom_histogram(binwidth=10, alpha=.5, position="identity") +
+  ylab("# of messages") + xlab("date")
+dev.copy(pdf,'date2.pdf')
+dev.off()
+ggplot(dat, aes(x=date, colour=sender)) + geom_density() +
+  ylab("# of messages") + xlab("date")
+dev.copy(pdf,'date3.pdf')
+dev.off()
+
+#average count per month
+ggplot(dat, aes(x = month, fill = sender)) + geom_histogram(binwidth =.5, position = 'dodge') + 
+  ylab("# of messages") + xlab("month") 
+dev.copy(pdf,'month1.pdf')
+dev.off()
+
+ggplot(dat, aes(x = month, fill = sender)) + geom_histogram(binwidth =.5, position = 'dodge') + 
+  ylab("# of messages") + xlab("month") + theme(plot.title = element_text(face = "italic")) + facet_grid(year ~  .)
+dev.copy(pdf,'month2.pdf')
+dev.off()
+
+ggplot(dat, aes(x=month, fill=sender)) + geom_histogram(binwidth=.5, alpha=.5, position="identity") +
+  ylab("# of messages") + xlab("month") + theme(plot.title = element_text(face = "italic")) + facet_grid(year ~  .)
+
+dev.copy(pdf,'month3.pdf')
+dev.off()
+
+ggplot(dat, aes(x=month, colour=sender)) + geom_density() + ylab("# of messages") + xlab("month") +
+  theme(plot.title = element_text(face = "italic")) + facet_grid(year ~  .)
+
+dev.copy(pdf,'month4.pdf')
+dev.off()
+
+
+#nice code for subset of data ggplot
+ggplot(subset(dat, year == "17" & month <= "7"), 
+       aes(x = month, fill =sender)) + geom_histogram(binwidth =1, position = 'dodge') 
+
+
+#mean count per day
+ggplot(dat, aes(x = day, fill = sender)) + geom_histogram(binwidth =.5, position = 'dodge')  +  
+  ylab("# of messages") + xlab("day") + theme(plot.title = element_text(face = "italic")) 
+dev.copy(pdf,'day1.pdf')
+dev.off()
+
+ggplot(dat, aes(x = day, fill = sender)) + geom_histogram(binwidth = .5) +
+  ylab("# of messages") + xlab("day") + theme(plot.title = element_text(face = "italic"))
+dev.copy(pdf,'day2.pdf')
+dev.off()
+
+
+#count per hour
+ggplot(dat, aes(x = hour, fill = sender)) + geom_histogram(binwidth = 1, postion ='dodge') +
+  ylab("# of messages") + xlab("hour (EST)") + theme(plot.title = element_text(face = "italic")) 
+dev.copy(pdf,'hour1.pdf')
+dev.off()
+
+ggplot(dat, aes(x = hour, fill = sender)) + geom_histogram(binwidth =.5, position = 'dodge')  +  
+  ylab("# of messages") + xlab("hour (EST)") + theme(plot.title = element_text(face = "italic")) 
+dev.copy(pdf,'hour2.pdf')
+dev.off()
+
+#count per hour per year
+ggplot(dat, aes(x=hour, fill=sender)) + geom_histogram(binwidth=.5, alpha=.5, position="identity") +
+  ylab("# of messages") + xlab("hour (EST)") + theme(plot.title = element_text(face = "italic")) + facet_grid(year ~  .)
+dev.copy(pdf,'hour3.pdf')
+dev.off()
+
+ggplot(dat, aes(x=hour, fill=sender)) + geom_histogram(binwidth=.5, position="dodge") +
+  ylab("# of messages") + xlab("hour (EST)") + theme(plot.title = element_text(face = "italic")) + facet_grid(year ~  .)
+
+dev.copy(pdf,'hour4.pdf')
+dev.off()
+
+
+
+
+################ Freq words, word cloud, and sentiment ###########
+
+text <- readLines("/Users...Whatsapp data/_chat_2.txt")
+docs <- Corpus(VectorSource(text))
+inspect(docs)
+
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+docs <- tm_map(docs, toSpace, "/")
+docs <- tm_map(docs, toSpace, "@")
+docs <- tm_map(docs, toSpace, "\\|")
+
+# Convert the text to lower case
+docs <- tm_map(docs, content_transformer(tolower))
+# Remove numbers
+docs <- tm_map(docs, removeNumbers)
+# Remove english common stopwords
+docs <- tm_map(docs, removeWords, stopwords("english"))
+# Remove your own stop word
+# specify your stopwords as a character vector
+docs <- tm_map(docs, removeWords, c("blabla1", "blabla2")) 
+# Remove punctuations
+docs <- tm_map(docs, removePunctuation)
+# Eliminate extra white spaces
+docs <- tm_map(docs, stripWhitespace)
+
+# Text stemming
+# docs <- tm_map(docs, stemDocument)
+
+#remove emojis
+for(i in 1:length(docs)){
+  docs[[i]]<-iconv(docs[[i]], "ASCII", "UTF-8", sub="")
+}
+
+docs <- tm_map(docs, removeWords, c("sender_1", "sender_2"))  #removing the names of the senders from text
+
+dtm <- TermDocumentMatrix(docs)
+m <- as.matrix(dtm)
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+head(d, 10)
+
+set.seed(1234)
+wordcloud(words = d$word, freq = d$freq, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+dev.copy(pdf,'cloud1.pdf')
+dev.off()
+
+#word frequency
+freq <- colSums(as.matrix(dtm))   
+length(freq)
+wf <- data.frame(word=names(v), freq=v)   
+head(wf) 
+
+ggplot(subset(wf, freq>900), aes(x = reorder(word, -freq), y = freq)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+dev.copy(pdf,'freq.pdf')
+dev.off()
+
+#term relationships
+findAssocs(dtm, c("just" , "know", "love", "now"), corlimit=0.1) 
+
+#Plot the 100 most frequently occurring words.
+set.seed(142)   
+dark2 <- brewer.pal(8, "Dark2")
+wordcloud(names(v), freq=v, max.words=100, rot.per=0.1, colors=dark2)   
+dev.copy(pdf,'cloud2.pdf')
+dev.off()
+  
+
+#negative vs. positive sentiment overall: https://cran.r-project.org/web/packages/tidytext/vignettes/tidying_casting.html
+dtm
+
+ap_td <- tidy(dtm)
+
+ap_sentiments <- ap_td %>%
+  inner_join(get_sentiments("bing"), by = c(term = "word"))
+
+table(ap_sentiments)
+
+ap_sentiments %>%
+  count(sentiment, term, wt = count) %>%
+  ungroup() %>%
+  filter(n >= 150) %>%
+  mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
+  mutate(term = reorder(term, n)) %>%
+  ggplot(aes(term, n, fill = sentiment)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylab("Contribution to sentiment for >=150 words")
+
+dev.copy(pdf,'sentiment1.pdf')
+dev.off()
+
+
+#broad sentiment analysis: https://medium.com/swlh/exploring-sentiment-analysis-a6b53b026131 
+#carryout sentiment mining using the get_nrc_sentiment()function #log the findings under a variable result
+
+result <- get_nrc_sentiment(as.character(docs))
+#change result from a list to a data frame and transpose it 
+result1<-data.frame(t(result))
+#rowSums computes column sums across rows for each level of a #grouping variable.
+new_result <- data.frame(rowSums(result1))
+#name rows and columns of the dataframe
+names(new_result)[1] <- "count"
+new_result <- cbind("sentiment" = rownames(new_result), new_result)
+rownames(new_result) <- NULL
+
+
+#plot the first 8 rows,the distinct emotions
+qplot(sentiment, data=new_result[1:8,], weight=count, geom="bar",fill=sentiment)
+dev.copy(pdf,'sentiment2.pdf')
+dev.off()
+
+#plot the last 2 rows ,positive and negative
+qplot(sentiment, data=new_result[9:10,], weight=count, geom="bar",fill=sentiment)
+dev.copy(pdf,'sentiment3.pdf')
+dev.off()
+
+
+
+
+
