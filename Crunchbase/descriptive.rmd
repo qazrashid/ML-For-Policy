@@ -1,0 +1,206 @@
+options(scipen = 999) # turns of scientific notations like 1e+40
+library(ggplot2)
+library(ggthemes)
+library(dplyr)
+library(lubridate)
+library(pipeR)
+library(data.table)
+library(pacman)
+library(tidyr)
+pacman::p_load(tm,SnowballC,foreign,plyr, twitteR,slam,foreign,wordcloud,LiblineaR,e1071,caret,ranger,rpart)
+detach("package:plyr", unload=TRUE) 
+
+##Descriptive stats
+des = read.csv ("/Users...des_no_outliers.csv", stringsAsFactors = F)
+des_outlier = read.csv ("/Users...des.csv", stringsAsFactors = F)
+des = des[,-which(names(des) == "X")] #removing "X"
+des_outlier = des_outlier[,-which(names(des_outlier) == "X")] #removing "X"
+
+attach(des)
+```
+
+
+Summary table
+
+```{r}
+dim(des)
+table(des$country)
+table(des$success)
+summary(des$funding_total_usd)
+summary(des$funding_rounds)
+summary(des$last_first_funding)
+table(des$success)
+
+aggregate(data.frame(count = year), list(value = year), length)
+aggregate(data.frame(count = region), list(value = region), length)
+aggregate(data.frame(count = country), list(value = country), length)
+aggregate(data.frame(count = country), list(value = country), length)
+
+```
+
+
+Graphs of USD funding total
+```{r}
+summary(des$funding_total_usd)
+summary(des_outlier$funding_total_usd)
+
+ggplot(aes(x = funding_total_usd/1000000), data = des) +
+  geom_histogram(binwidth = .08) + 
+  scale_x_log10() +
+  xlab('Million USD') +
+  ggtitle('Histogram of the Raised Amount') +
+  theme(plot.title = element_text(face = "italic")) 
+
+ggplot(aes(x = funding_total_usd/1000000, fill=success), data = des) +
+  geom_histogram(binwidth = .09) + 
+  scale_x_log10() +
+  xlab('Million USD') +
+  ggtitle('Histogram of the Raised Amount') +
+  theme(plot.title = element_text(face = "italic")) 
+
+ggplot(data=des, aes(x=funding_rounds, y=funding_total_usd/1000000, colour = success)) + geom_point(alpha = 0.3,  position = position_jitter()) + xlab('Funding round') + ylab('Total Funding (millions)')
+dev.copy(pdf,'rounds+total funding.pdf')
+dev.off()
+
+
+
+des %>%
+  filter(success == "0") %>%
+  ggplot(aes(x = funding_rounds, y = funding_total_usd, colour = success)) +
+  geom_point(alpha = 0.3,  position = position_jitter()) + stat_smooth(method = "lm")
+
+des %>%
+  filter(success == "1") %>%
+  ggplot(aes(x = funding_rounds, y = funding_total_usd, colour = success)) +
+  geom_point(alpha = 0.3,  position = position_jitter()) + stat_smooth(method = "lm")
+```
+
+## Top 10 Funding Total raised by Company
+
+```{r}
+des <- des [order(funding_total_usd, decreasing = TRUE), ]
+funding <- head(des, 10)
+
+ggplot(aes(x = reorder(name, funding_total_usd), y = funding_total_usd/1000000), data = funding) +
+  geom_bar(stat = 'identity') +
+  xlab('Startups') +
+  ylab('Million USD') +
+  ggtitle('Top 20 Total Funding Raised by a Startup') + coord_flip() + theme(plot.title = element_text(face = "italic"))
+
+
+
+theme_set(theme_bw())
+# Plot
+ggplot(funding, aes(x= reorder(name,funding_total_usd), y=funding_total_usd/1000000)) + 
+  geom_point(size=3) + 
+  geom_segment(aes(x=name, 
+                   xend=name, 
+                   y=0, 
+                   yend=funding_total_usd/1000000)) + 
+  labs(title="Top 10 Startups by Funding") +
+  theme(axis.text.x = element_text(angle=65, vjust=0.6))
+dev.copy(pdf,'top10_startups.pdf')
+dev.off()
+
+```
+
+## Top 20 Funding Total raised by region
+
+```{r}
+group.region.1 <- group_by(des, region, success)
+#group.region <- summarize(group.region.1, funding_total_usd = n())
+funding_by_region <- summarize(group.region.1, funding_sum = sum(funding_total_usd))
+funding_by_region <- funding_by_region[order(funding_by_region$funding_sum, decreasing = TRUE), ]
+funding_by_region_top20 <- head(funding_by_region, 10)
+
+ggplot(aes(x = reorder(region, funding_sum), y = funding_sum/1000000000), data = funding_by_region_top20) +
+  geom_bar(stat = 'identity') +
+  xlab('Regions') +
+  ylab('Billion USD') +
+  ggtitle('Top 10 Regions Funding Raised by Startups') + coord_flip() + theme(plot.title = element_text(face = "italic"))
+
+dev.copy(pdf,'funding_by region.pdf')
+dev.off()
+
+```
+
+## Total Funding raised by year
+
+```{r}
+#fix the data to get year
+des$founded_at <- strptime(des$founded_at, "%m/%d/%y") %>>% as.POSIXct()
+des$year = format(as.Date(des$founded_at, format="%d/%m/%Y"),"%Y")
+des$year[is.na(des$year)] = "other_year"
+table(des$year)
+des = des[ which(des$year>="2000" & des$year<"2016"), ] #keep only from year 2000 to 2017
+
+#group the years by funding
+group.year.1 <- group_by(des, year)
+funding_by_year <- summarize(group.year.1, funding_sum = sum(funding_total_usd))
+
+#group the years worldwide
+ggplot(funding_by_year, aes(x = year, y=funding_sum/1000000000)) + geom_bar(stat="identity") +  
+  ylab("Billions of USD in Investments (World)") + xlab("Year") + theme(plot.title = element_text(face = "italic"))
+
+dev.copy(pdf,'years_fund_world.pdf')
+dev.off()
+
+
+#group the years in SF bay area
+group.year.2 <- group_by(des, year, region)
+funding_by_year.2 <- summarize(group.year.2, funding_sum = sum(funding_total_usd))
+funding_by_year.2 <- subset(funding_by_year.2, region == "SFBayArea") #keep only "SF" 
+
+ggplot(funding_by_year.2, aes(x = year, y=funding_sum/1000000000)) + geom_bar(stat="identity") +  
+  ylab("Billions of USD in Investments (SF Bay Area)") + xlab("Year") + theme(plot.title = element_text(face = "italic"))
+
+dev.copy(pdf,'years_fund_SF.pdf')
+dev.off()
+
+```
+## Top 20 Funding Total raised by region and industry
+
+```{r}
+group.region <- group_by(des, category_list)
+funding_by_region <- summarize(group.region, funding_sum = sum(funding_total_usd))
+funding_by_region <- funding_by_region[order(funding_by_region$funding_sum, decreasing = TRUE), ]
+funding_by_region_top20 <- head(funding_by_region, 10)
+funding_by_region_top20 [funding_by_region_top20 == "Biotechnology|Health Care"] = "Biotechnology + Health Care"
+funding_by_region_top20 [funding_by_region_top20 == "Internet|Mobile"] = "Internet + Mobile"
+funding_by_region_top20 [funding_by_region_top20 == "All Students|Colleges|Communities|Identity|Social Media"] = "Communities + Social Media"
+
+
+ggplot(aes(x = reorder(category_list, funding_sum), y = funding_sum/1000000000), data = funding_by_region_top20) +
+  geom_bar(stat = 'identity') +
+  xlab('Industry in the World') +
+  ylab('Billion USD') +
+  ggtitle('Top 10 Industries by Funds Raised') + coord_flip() + theme(plot.title = element_text(face = "italic"))
+dev.copy(pdf,'world+industry+funds.pdf')
+dev.off()
+```
+
+## Success rate in SF area by industry from top 20 funding 
+
+```{r}
+sf_bay <- subset(des, region == "SFBayArea") #keep only "SF" 
+group.region <- group_by(sf_bay, category_list)
+funding_by_region <- summarize(group.region, funding_sum = sum(funding_total_usd))
+funding_by_region <- funding_by_region[order(funding_by_region$funding_sum, decreasing = TRUE), ]
+funding_by_region_top20 <- head(funding_by_region, 10)
+
+funding_by_region_top20 [funding_by_region_top20 == "All Students|Colleges|Communities|Identity|Social Media"] = "Communities + Social Media"
+funding_by_region_top20 [funding_by_region_top20 == "Biotechnology|Health Care"] = "Biotechnology + Health Care"
+funding_by_region_top20 [funding_by_region_top20 == "Information Services|Messaging|MicroBlogging|Service Providers|SMS|Software"] = "Information Services + Messaging + Software"
+funding_by_region_top20 [funding_by_region_top20 == "Clean Technology|Construction"] = "Clean Technology + Construction"
+
+ggplot(aes(x = reorder(category_list, funding_sum), y = funding_sum/1000000000), data = funding_by_region_top20) +
+  geom_bar(stat = 'identity') +
+  xlab('Industry in SF Bay Area') +
+  ylab('Billion USD') +
+  ggtitle('Top 10 Industries by Funds Raised') + coord_flip() + theme(plot.title = element_text(face = "italic"))
+dev.copy(pdf,'SF+industry+funds.pdf')
+dev.off()
+
+```
+
+
