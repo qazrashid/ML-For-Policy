@@ -1,3 +1,4 @@
+```{r}
 options(scipen = 999) # turns of scientific notations like 1e+40
 library(ggplot2)
 library(ggthemes)
