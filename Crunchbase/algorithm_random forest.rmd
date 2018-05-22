@@ -1,8 +1,8 @@
 Part 1: includes all the features.
 
 ```{r}
-dataset_xy = read.csv ("/Users/qazirashid/Desktop/Machine Learning/Final project/dataset_xy_no_outliers.csv", header = TRUE)
-features = read.csv ("/Users/qazirashid/Desktop/Machine Learning/Final project/features_no_outliers.csv", header = TRUE)
+dataset_xy = read.csv ("/Users...dataset_xy_no_outliers.csv", header = TRUE)
+features = read.csv ("/Users...features_no_outliers.csv", header = TRUE)
 
 dataset_xy= dataset_xy[,-which(names(dataset_xy) == "X")] #removing "X" 
 dataset_xy= dataset_xy[,-which(names(dataset_xy) == "country.Other")] #removing "other" 
